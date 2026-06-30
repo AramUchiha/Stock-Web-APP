@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StockCard } from "@/components/StockCard";
+import { SymbolSearch } from "@/components/SymbolSearch";
 import { demoStockSignals } from "@/lib/seed-data";
 
 const features = [
@@ -23,11 +24,18 @@ export default function HomePage() {
   return (
     <main className="flex-1">
       <nav className="border-b border-border px-6 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <Link href="/" className="font-mono text-lg font-bold tracking-wide text-white">
             StockSignal
           </Link>
+          <SymbolSearch className="hidden flex-1 md:block" />
           <div className="flex items-center gap-3">
+            <Link href="/news" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 hover:text-white sm:inline-flex">
+              News
+            </Link>
+            <Link href="/insiders" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 hover:text-white sm:inline-flex">
+              Insiders
+            </Link>
             <Link href="/login" className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white">
               Sign in
             </Link>
@@ -48,7 +56,11 @@ export default function HomePage() {
             <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
               StockSignal aggregates public disclosures, contracts, lobbying activity, and news sentiment into one dashboard for bullish and bearish signal monitoring.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-8 max-w-xl">
+              <SymbolSearch placeholder="Search any public stock (e.g. AAPL, TSLA, MSFT)" className="max-w-xl" />
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link href="/signup" className="rounded-lg bg-bullish px-5 py-3 text-center text-sm font-semibold text-black hover:bg-emerald-400">
                 Start Free
               </Link>
