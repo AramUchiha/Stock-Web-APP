@@ -138,6 +138,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      ai_outlooks: {
+        Row: {
+          id: string;
+          ticker: string;
+          probability_up: number;
+          probability_down: number;
+          confidence: string | null;
+          rationale: string | null;
+          model: string;
+          generated_at: string;
+        };
+        Insert: {
+          id?: string;
+          ticker: string;
+          probability_up: number;
+          probability_down: number;
+          confidence?: string | null;
+          rationale?: string | null;
+          model: string;
+          generated_at?: string;
+        };
+        Update: {
+          id?: string;
+          ticker?: string;
+          probability_up?: number;
+          probability_down?: number;
+          confidence?: string | null;
+          rationale?: string | null;
+          model?: string;
+          generated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

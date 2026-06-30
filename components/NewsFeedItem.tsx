@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 
 type NewsFeedItemProps = {
   signal: SignalRow;
+  sourcePublishedAtLabel?: string;
+  createdAtLabel?: string;
 };
 
 type ArticlePayload = {
@@ -98,7 +100,7 @@ function formatSource(source: string | null | undefined) {
   }
 }
 
-export function NewsFeedItem({ signal }: NewsFeedItemProps) {
+export function NewsFeedItem({ signal, sourcePublishedAtLabel, createdAtLabel }: NewsFeedItemProps) {
   const payload = getPayload(signal.raw_payload);
   const headline = cleanText(signal.description ?? payload.title ?? "Untitled news item");
   const domain = cleanText(signal.actor ?? payload.publisher ?? payload.domain ?? formatSource(signal.source));
@@ -134,8 +136,8 @@ export function NewsFeedItem({ signal }: NewsFeedItemProps) {
           </h2>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <time>{formatDateTime(signal.source_published_at)}</time>
-            <span>Updated {formatDateTime(signal.created_at)}</span>
+            <time>{sourcePublishedAtLabel ?? formatDateTime(signal.source_published_at)}</time>
+            <span>Updated {createdAtLabel ?? formatDateTime(signal.created_at)}</span>
           </div>
 
           {excerpt ? <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">{excerpt}</p> : null}

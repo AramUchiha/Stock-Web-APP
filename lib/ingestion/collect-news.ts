@@ -43,8 +43,7 @@ export async function collectNewsForCompany(options: CollectNewsOptions): Promis
     searchGdeltNews({
       company,
       maxRecords: gdeltMaxRecords,
-      timespan: gdeltTimespan,
-      requireTrustedDomain: false
+      timespan: gdeltTimespan
     }).catch(() => []),
     getYahooFinanceNewsForQueries(yahooQueries, yahooNewsCount).catch(() => []),
     getFinnhubCompanyNews(company.ticker, finnhubDaysBack, finnhubLimit).catch(() => [])

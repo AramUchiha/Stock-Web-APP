@@ -89,7 +89,7 @@ export default async function DashboardPage() {
               <SymbolSearch />
             </div>
           </div>
-          <MarketTabs active="news" />
+          <MarketTabs />
         </div>
 
         {usingDemoData ? (

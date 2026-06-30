@@ -3,7 +3,7 @@ import { getInsiderTransactionsForTicker, resolveCompany } from "@/lib/integrati
 import { normalizeSecTransaction } from "@/lib/ingestion/sec-insiders";
 import { signalInputToRow } from "@/lib/ingestion/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { trackedCompanies, type TrackedCompany } from "@/lib/market/companies";
+import type { TrackedCompany } from "@/lib/market/companies";
 
 const FRESH_TTL_MS = 15 * 60 * 1000;
 const INSIDER_LIMIT = 8;
@@ -107,10 +107,4 @@ export async function ensureTickerSignals(ticker: string, companyName?: string):
   } catch {
     // On-demand enrichment is best-effort; the page still renders cached data.
   }
-}
-
-export async function ensureTrackedNews(): Promise<void> {
-  await Promise.all(
-    trackedCompanies.map((company) => ensureTickerSignals(company.ticker, company.companyName))
-  );
 }

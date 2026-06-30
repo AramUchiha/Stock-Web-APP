@@ -29,6 +29,10 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Only routes that read or depend on server-side auth state need the session
+// refresh round trip. Public data pages (/, /dashboard, /news, /insiders,
+// /stock/*) and all /api/* routes read signals via RLS-anon access and don't
+// need it, so excluding them removes an extra network call from every click.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/settings"]
 };

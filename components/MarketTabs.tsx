@@ -7,7 +7,7 @@ type MarketTab = {
 };
 
 type MarketTabsProps = {
-  active: "news" | "insiders";
+  active?: "news" | "insiders";
 };
 
 const tabs: MarketTab[] = [
@@ -19,7 +19,7 @@ export function MarketTabs({ active }: MarketTabsProps) {
   return (
     <div className="flex flex-wrap gap-2 rounded-xl border border-border bg-surface p-1">
       {tabs.map((tab) => {
-        const isActive = tab.href.includes(active);
+        const isActive = active ? tab.href.includes(active) : false;
 
         return (
           <Link

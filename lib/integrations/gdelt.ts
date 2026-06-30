@@ -1,6 +1,5 @@
 import { fetchJson } from "@/lib/integrations/http";
 import type { TrackedCompany } from "@/lib/market/companies";
-import { isTrustedNewsDomain } from "@/lib/market/trusted-news-sources";
 
 const GDELT_DOC_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc";
 
@@ -23,7 +22,6 @@ type SearchGdeltNewsOptions = {
   company: TrackedCompany;
   maxRecords?: number;
   timespan?: string;
-  requireTrustedDomain?: boolean;
 };
 
 function isGdeltArticle(value: unknown): value is GdeltArticle {
@@ -52,8 +50,7 @@ function buildCompanyQuery(company: TrackedCompany) {
 export async function searchGdeltNews({
   company,
   maxRecords = 25,
-  timespan = "1d",
-  requireTrustedDomain = false
+  timespan = "1d"
 }: SearchGdeltNewsOptions) {
   const url = new URL(GDELT_DOC_API_URL);
   url.searchParams.set("query", buildCompanyQuery(company));
@@ -71,6 +68,5 @@ export async function searchGdeltNews({
 
   return response.articles
     .filter(isGdeltArticle)
-    .filter(isEnglishArticle)
-    .filter((article) => !requireTrustedDomain || isTrustedNewsDomain(article.domain));
+    .filter(isEnglishArticle);
 }

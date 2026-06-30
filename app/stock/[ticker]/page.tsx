@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { CompanyAbout, CompanySector } from "@/components/CompanyProfile";
 import { LiveQuote } from "@/components/LiveQuote";
 import { NewsFeedItem } from "@/components/NewsFeedItem";
+import { ProbabilityBar } from "@/components/ProbabilityBar";
+import { Skeleton } from "@/components/Skeleton";
+import { SignalSync } from "@/components/SignalSync";
 import { StockChart } from "@/components/StockChart";
+import { readOutlook } from "@/lib/ai/read-outlook";
 import { getMarketDataProvider } from "@/lib/integrations/market-data";
-import { ensureTickerSignals } from "@/lib/ingestion/on-demand";
 import { readCachedSignals } from "@/lib/ingestion/read-signals";
+import { cached } from "@/lib/cache";
 import { formatCompact, formatCurrency, formatDateTime, formatPrice, normalizeTicker } from "@/lib/format";
+
+const QUOTE_TTL_MS = 30_000;
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +39,123 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SectionSkeleton() {
+  return (
+    <div className="mt-4 space-y-3">
+      <Skeleton className="h-24" />
+      <Skeleton className="h-24" />
+    </div>
+  );
+}
+
+async function AIOutlookSection({ ticker }: { ticker: string }) {
+  const { outlook } = await readOutlook(ticker);
+
+  if (!outlook) {
+    return (
+      <p className="mt-4 rounded-2xl border border-border bg-surface p-6 text-sm text-zinc-400">
+        Generating an AI outlook for {ticker}. Check back in a moment.
+      </p>
+    );
+  }
+
+  const confidenceLabel = outlook.confidence
+    ? `${outlook.confidence.charAt(0).toUpperCase()}${outlook.confidence.slice(1)} confidence`
+    : null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-border bg-surface p-6">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-medium text-bullish">Probability up</span>
+            <span className="font-mono text-lg font-semibold text-white">{outlook.probability_up}%</span>
+          </div>
+          <div className="mt-2">
+            <ProbabilityBar score={outlook.probability_up} direction="bullish" />
+          </div>
+        </div>
+        <div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-medium text-bearish">Probability down</span>
+            <span className="font-mono text-lg font-semibold text-white">{outlook.probability_down}%</span>
+          </div>
+          <div className="mt-2">
+            <ProbabilityBar score={outlook.probability_down} direction="bearish" />
+          </div>
+        </div>
+      </div>
+
+      {outlook.rationale ? <p className="mt-5 text-sm text-zinc-300">{outlook.rationale}</p> : null}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+        {confidenceLabel ? <span>{confidenceLabel}</span> : null}
+        <span>Updated {formatDateTime(outlook.generated_at)}</span>
+      </div>
+
+      <p className="mt-4 text-xs text-zinc-600">
+        AI-generated estimate from recent price action and signals — not financial advice.
+      </p>
+    </div>
+  );
+}
+
+async function NewsSection({ ticker }: { ticker: string }) {
+  const { signals } = await readCachedSignals({ signalType: "news", ticker, limit: 40 });
+
+  if (signals.length === 0) {
+    return (
+      <p className="mt-4 rounded-2xl border border-border bg-surface p-6 text-sm text-zinc-400">
+        No cached news yet for {ticker}.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      {signals.map((signal) => (
+        <NewsFeedItem key={signal.id} signal={signal} />
+      ))}
+    </div>
+  );
+}
+
+async function InsiderSection({ ticker }: { ticker: string }) {
+  const { signals } = await readCachedSignals({ signalType: "insider", ticker, limit: 20 });
+
+  if (signals.length === 0) {
+    return (
+      <p className="mt-4 rounded-2xl border border-border bg-surface p-6 text-sm text-zinc-400">
+        No cached insider filings yet for {ticker}.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 grid gap-3">
+      {signals.map((signal) => (
+        <article key={signal.id} className="rounded-xl border border-border bg-surface p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-white">{signal.actor ?? "Reporting owner"}</p>
+              <p className="mt-1 text-xs text-zinc-500">{signal.description}</p>
+            </div>
+            <p className="shrink-0 font-mono text-sm text-zinc-200">{formatCurrency(signal.dollar_amount)}</p>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+            <span>{formatDateTime(signal.source_published_at)}</span>
+            {signal.raw_url ? (
+              <a href={signal.raw_url} className="text-bullish hover:text-emerald-300">
+                SEC filing
+              </a>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default async function StockPage({ params }: StockPageProps) {
   const ticker = normalizeTicker(params.ticker);
 
@@ -39,26 +164,17 @@ export default async function StockPage({ params }: StockPageProps) {
   }
 
   const provider = getMarketDataProvider();
-  const [quote, profile] = await Promise.all([
-    provider.getQuote(ticker).catch(() => null),
-    provider.getProfile(ticker).catch(() => null)
-  ]);
+  const quote = await cached(`stock-quote:${ticker}`, QUOTE_TTL_MS, () => provider.getQuote(ticker)).catch(() => null);
 
   if (!quote) {
     notFound();
   }
 
-  const name = quote.name ?? profile?.name ?? ticker;
-
-  await ensureTickerSignals(ticker, name);
-
-  const [news, insiders] = await Promise.all([
-    readCachedSignals({ signalType: "news", ticker, limit: 40 }),
-    readCachedSignals({ signalType: "insider", ticker, limit: 20 })
-  ]);
+  const name = quote.name ?? ticker;
 
   return (
     <main className="flex-1 px-5 py-8 sm:px-6 sm:py-10">
+      <SignalSync ticker={ticker} companyName={name} />
       <div className="mx-auto max-w-5xl">
         <Link href="/dashboard" className="text-sm font-medium text-zinc-400 hover:text-white">
           &larr; Back to dashboard
@@ -73,12 +189,7 @@ export default async function StockPage({ params }: StockPageProps) {
               {quote.exchange ? <span className="text-xs text-zinc-500">{quote.exchange}</span> : null}
             </div>
             <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">{name}</h1>
-            {profile?.sector ? (
-              <p className="mt-2 text-sm text-zinc-400">
-                {profile.sector}
-                {profile.industry ? ` \u00b7 ${profile.industry}` : ""}
-              </p>
-            ) : null}
+            <CompanySector ticker={ticker} />
           </div>
           <LiveQuote ticker={quote.ticker} initialQuote={quote} />
         </div>
@@ -101,57 +212,27 @@ export default async function StockPage({ params }: StockPageProps) {
           <StockChart ticker={quote.ticker} initialRange="1M" />
         </section>
 
-        {profile?.description ? (
-          <section className="mt-8 rounded-2xl border border-border bg-surface p-6">
-            <h2 className="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">About</h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-400">{profile.description}</p>
-          </section>
-        ) : null}
+        <section className="mt-10">
+          <h2 className="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">AI outlook</h2>
+          <Suspense fallback={<SectionSkeleton />}>
+            <AIOutlookSection ticker={ticker} />
+          </Suspense>
+        </section>
+
+        <CompanyAbout ticker={ticker} />
 
         <section className="mt-10">
           <h2 className="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">Recent news</h2>
-          {news.signals.length > 0 ? (
-            <div className="mt-4">
-              {news.signals.map((signal) => (
-                <NewsFeedItem key={signal.id} signal={signal} />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-4 rounded-2xl border border-border bg-surface p-6 text-sm text-zinc-400">
-              No cached news yet for {quote.ticker}.
-            </p>
-          )}
+          <Suspense fallback={<SectionSkeleton />}>
+            <NewsSection ticker={ticker} />
+          </Suspense>
         </section>
 
         <section className="mt-10">
           <h2 className="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">Insider filings</h2>
-          {insiders.signals.length > 0 ? (
-            <div className="mt-4 grid gap-3">
-              {insiders.signals.map((signal) => (
-                <article key={signal.id} className="rounded-xl border border-border bg-surface p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-white">{signal.actor ?? "Reporting owner"}</p>
-                      <p className="mt-1 text-xs text-zinc-500">{signal.description}</p>
-                    </div>
-                    <p className="shrink-0 font-mono text-sm text-zinc-200">{formatCurrency(signal.dollar_amount)}</p>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-                    <span>{formatDateTime(signal.source_published_at)}</span>
-                    {signal.raw_url ? (
-                      <a href={signal.raw_url} className="text-bullish hover:text-emerald-300">
-                        SEC filing
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-4 rounded-2xl border border-border bg-surface p-6 text-sm text-zinc-400">
-              No cached insider filings yet for {quote.ticker}.
-            </p>
-          )}
+          <Suspense fallback={<SectionSkeleton />}>
+            <InsiderSection ticker={ticker} />
+          </Suspense>
         </section>
       </div>
     </main>
